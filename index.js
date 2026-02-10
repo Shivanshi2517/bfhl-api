@@ -1,20 +1,27 @@
 const express = require("express");
-const axios = require("axios");
-const app = express();
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
+const app = express();
 app.use(express.json());
 
 const OFFICIAL_EMAIL = "shivanshi.jain@chitkara.edu.in";
 
-// Utility functions
+/* ================= UTILITY FUNCTIONS ================= */
+
+// Fibonacci: returns n numbers
 const getFibonacci = (n) => {
-  let fib = [0, 1];
-  for (let i = 2; i <= n; i++) {
+  if (n <= 0) return [];
+  if (n === 1) return [0];
+  if (n === 2) return [0, 1];
+
+  const fib = [0, 1];
+  for (let i = 2; i < n; i++) {
     fib.push(fib[i - 1] + fib[i - 2]);
   }
-  return fib.slice(0, n + 1);
+  return fib;
 };
 
+// Prime filter
 const getPrimes = (arr) => {
   const isPrime = (n) => {
     if (n < 2) return false;
@@ -26,16 +33,26 @@ const getPrimes = (arr) => {
   return arr.filter(isPrime);
 };
 
+// GCD / HCF
 const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
 const getHCF = (arr) => arr.reduce((a, b) => gcd(a, b));
-const getLCM = (arr) => arr.reduce((a, b) => (a * b) / gcd(a, b));
 
-// POST /bfhl
+// LCM
+const getLCM = (arr) =>
+  arr.reduce((a, b) => (a * b) / gcd(a, b));
+
+/* ================= GEMINI SETUP ================= */
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+/* ================= POST /bfhl ================= */
+
 app.post("/bfhl", async (req, res) => {
   try {
     const body = req.body;
     let data;
 
+    // Exactly ONE key is expected
     if (body.fibonacci !== undefined) {
       data = getFibonacci(body.fibonacci);
     } 
@@ -49,19 +66,15 @@ app.post("/bfhl", async (req, res) => {
       data = getHCF(body.hcf);
     } 
     else if (body.AI !== undefined) {
-      const response = await axios.post(
-"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash"
+      });
 
-        {
-          contents: [{ parts: [{ text: body.AI }] }]
-        },
-        {
-          params: { key: process.env.GEMINI_API_KEY }
-        }
-      );
+      const result = await model.generateContent(body.AI);
+      const text = result.response.text();
 
-      data =
-        response.data.candidates[0].content.parts[0].text.split(" ")[0];
+      // Single-word response as required
+      data = text.trim().split(" ")[0];
     } 
     else {
       return res.status(400).json({
@@ -71,21 +84,23 @@ app.post("/bfhl", async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       is_success: true,
       official_email: OFFICIAL_EMAIL,
       data
     });
-  } catch (err) {
-    res.status(500).json({
+
+  } catch (error) {
+    return res.status(500).json({
       is_success: false,
       official_email: OFFICIAL_EMAIL,
-      data: "Server error"
+      data: "Internal server error"
     });
   }
 });
 
-// GET /health
+/* ================= GET /health ================= */
+
 app.get("/health", (req, res) => {
   res.status(200).json({
     is_success: true,
@@ -93,5 +108,9 @@ app.get("/health", (req, res) => {
   });
 });
 
+/* ================= SERVER ================= */
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port", PORT));
+app.listen(PORT, () => {
+  console.log("Server running on port", PORT);
+});
