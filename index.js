@@ -50,7 +50,8 @@ app.post("/bfhl", async (req, res) => {
     } 
     else if (body.AI !== undefined) {
       const response = await axios.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent",
+"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+
         {
           contents: [{ parts: [{ text: body.AI }] }]
         },
